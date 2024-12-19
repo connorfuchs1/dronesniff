@@ -14,9 +14,10 @@ After=network-online.target
 
 [Service]
 Type=simple
+ExecStartPre=/bin/sleep 10
 ExecStart=${PYTHON_BIN} ${SCRIPT_PATH}
 Restart=on-failure
-User=pi
+#User=pi
 WorkingDirectory=/home/pi
 Environment=PYTHONUNBUFFERED=1
 
