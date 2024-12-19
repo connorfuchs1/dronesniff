@@ -6,30 +6,6 @@ SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 SCRIPT_PATH="/home/pi/drone_sniff/src/startup_sniffer.py"
 PYTHON_BIN="/usr/bin/python3"
 
-cat << 'EOF' > "${SCRIPT_PATH}"
-
-
-import subprocess
-
-#bring interface down
-subprocess.run(["sudo", "ip", "link", "set","wlan", "down"], check=True)
-
-#set monitor mode
-subprocess.run(["sudo", "iw", "dev", "wlan1", "set", "type", "monitor"], check=True)
-
-#bring interface back up
-subprocess.run(["sudo", "ip", "link", "set","wlan", "up"], check=True)
-
-
-
-
-subprocess.run(["sudo", "airodump-ng", "wlan1"])
-
-EOF
-
-sudo chown pi:pi "${SCRIPT_PATH}"
-chmod +x "${SCRIPT_PATH}"
-
 sudo bash -c "cat << 'EOF' > ${SERVICE_FILE}
 [Unit]
 Description=Start WLAN Sniffer on Boot
@@ -45,7 +21,11 @@ WorkingDirectory=/home/pi
 Environment=PYTHONUNBUFFERED=1
 
 [Install]
-WantedBy=mult-user.target
+WantedBy=multi-user.target
 EOF"
+
+sudo systemctl daemon-reload
+sudo systemctl enable "${SERVICE_NAME}.service"
+sudo systemctl start "${SERVICE_NAME}.service"
 
 echo "Setup Complete. Sniffer service is now running and will start automatically on each reboot"
