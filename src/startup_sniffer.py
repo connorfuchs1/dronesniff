@@ -28,4 +28,3 @@ subprocess.run([
     "--output-format", "csv,pcap", 
     "wlan1"
 ])
-
