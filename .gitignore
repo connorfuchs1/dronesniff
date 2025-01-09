@@ -1,2 +1,4 @@
 *.cap
 *.csv
+*.json
+*.log
