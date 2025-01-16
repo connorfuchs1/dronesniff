@@ -1,12 +1,28 @@
 import json
 import csv
-import requests
 from datetime import datetime, timezone
 import pytz  # Install with: pip install pytz
 
 # File paths
-gps_log_file = "../captures/gps_capture_20250112-222320.log"
-wifi_csv_file = "../captures/capture_20250112-222320-01.csv"
+gps_log_file = "../captures/gps_capture_20250115-185058.log"
+wifi_csv_file = "../captures/capture_20250115-185058-01.csv"
+mac_vendor_file = "../macdata/mac.csv"  # Path to  MAC vendor CSV file
+
+# Function to load MAC vendor data
+def load_mac_vendor_data(file_path):
+    mac_vendor_map = {}
+    with open(file_path, "r") as csv_file:
+        reader = csv.DictReader(csv_file)
+        for row in reader:
+            if row["Assignment"] and row["OrganizationName"]:
+                # Use the Assignment column (OUI) as the key, and OrganizationName as the value
+                mac_vendor_map[row["Assignment"].strip().upper()] = row["OrganizationName"].strip()
+    return mac_vendor_map
+
+# Local MAC vendor lookup
+def lookup_mac_vendor(mac, mac_vendor_map):
+    oui = mac.replace(":", "").upper()[:6]  # Extract OUI (first 6 characters)
+    return mac_vendor_map.get(oui, "Unknown Vendor")
 
 # Function to parse GPS data
 def parse_gps_log(file_path):
@@ -60,6 +76,9 @@ def parse_wifi_csv(file_path):
 
             # Process Dataset 1
             if current_dataset == 1:
+                if len(row) < 15:  # Ensure row has enough columns
+                    print(f"Skipping Dataset 1 row {i} due to insufficient columns.\nRow: {row}")
+                    continue
                 try:
                     # Convert timestamps to UTC
                     first_seen = local_tz.localize(
@@ -75,7 +94,7 @@ def parse_wifi_csv(file_path):
                         "last_seen": last_seen,
                         "channel": row[3].strip(),
                         "privacy": row[5].strip(),
-                        "ssid": row[13].strip(),
+                        "ssid": row[13].strip() if len(row) > 13 else "",
                         "key": row[14].strip() if len(row) > 14 else "Unknown"
                     })
                 except (ValueError, IndexError) as e:
@@ -83,6 +102,9 @@ def parse_wifi_csv(file_path):
 
             # Process Dataset 2
             elif current_dataset == 2:
+                if len(row) < 7:  # Ensure row has enough columns
+                    print(f"Skipping Dataset 2 row {i} due to insufficient columns.\nRow: {row}")
+                    continue
                 try:
                     probed_essids = row[6].split(",") if len(row) > 6 and row[6].strip() else []
                     dataset2.append({
@@ -101,39 +123,20 @@ def parse_wifi_csv(file_path):
     print(f"Total entries in Dataset 2: {len(dataset2)}")
     return dataset1
 
-
-
-
-# Function to lookup MAC address vendor
-def lookup_mac_vendor(mac):
-    url = f"https://api.macvendors.com/{mac}"
-    try:
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            return response.text
-        else:
-            return "Unknown Vendor"
-    except requests.RequestException:
-        return "Lookup Failed"
-
 # Function to associate GPS and Wi-Fi data
-def associate_data(gps_data, wifi_data):
+def associate_data(gps_data, wifi_data, mac_vendor_map):
     combined_data = []
     for wifi in wifi_data:
         for i in range(len(gps_data) - 1):
             current_gps = gps_data[i]
             next_gps = gps_data[i + 1]
-            
-            #print(f"Wi-Fi start time: {wifi['start_time']}, MAC: {wifi['mac']}")
-            #print(f"Current GPS range: {current_gps['timestamp']} to {next_gps['timestamp']}")
 
-            # Check if the WiFi start time is between the current and next GPS timestamps
+            # Check if the WiFi last seen time is between the current and next GPS timestamps
             if current_gps["timestamp"] <= wifi["last_seen"] <= next_gps["timestamp"]:
-                
                 # Lookup MAC vendor
-                vendor = lookup_mac_vendor(wifi["bssid"])
+                vendor = lookup_mac_vendor(wifi["bssid"], mac_vendor_map)
                 
-                # Combine dataa
+                # Combine data
                 combined_data.append({
                     "mac": wifi["bssid"],
                     "ssid": wifi["ssid"],
@@ -147,9 +150,10 @@ def associate_data(gps_data, wifi_data):
     return combined_data
 
 # Main processing
+mac_vendor_map = load_mac_vendor_data(mac_vendor_file)
 gps_data = parse_gps_log(gps_log_file)
 wifi_data = parse_wifi_csv(wifi_csv_file)
-combined_data = associate_data(gps_data, wifi_data)
+combined_data = associate_data(gps_data, wifi_data, mac_vendor_map)
 
 # Save combined data
 output_file = "combined_data_with_vendors.json"
