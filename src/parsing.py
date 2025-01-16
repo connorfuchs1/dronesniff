@@ -2,10 +2,11 @@ import json
 import csv
 from datetime import datetime, timezone
 import pytz  # Install with: pip install pytz
+import math
 
 # File paths
-gps_log_file = "../captures/gps_capture_20250115-210737.log"
-wifi_csv_file = "../captures/capture_20250115-210737-01.csv"
+gps_log_file = "../captures/gps_capture_20250115-182326.log"
+wifi_csv_file = "../captures/capture_20250115-182326-01.csv"
 mac_vendor_file = "../macdata/mac.csv"  # Path to  MAC vendor CSV file
 
 # Function to load MAC vendor data
@@ -25,6 +26,40 @@ def lookup_mac_vendor(mac, mac_vendor_map):
     return mac_vendor_map.get(oui, "Unknown Vendor")
 
 # Function to parse GPS data
+# Constants for WGS84
+WGS84_A = 6378137.0  # Semi-major axis (meters)
+WGS84_F = 1 / 298.257223563  # Flattening
+WGS84_B = WGS84_A * (1 - WGS84_F)  # Semi-minor axis
+
+# Helper function to convert ECEF to geodetic coordinates
+def ecef_to_geodetic(x, y, z):
+    e2 = 1 - (WGS84_B**2 / WGS84_A**2)  # Square of eccentricity
+    ep2 = (WGS84_A**2 / WGS84_B**2) - 1  # Second eccentricity squared
+
+    p = math.sqrt(x**2 + y**2)
+    theta = math.atan2(z * WGS84_A, p * WGS84_B)
+
+    # Latitude
+    lat = math.atan2(
+        z + ep2 * WGS84_B * math.sin(theta)**3,
+        p - e2 * WGS84_A * math.cos(theta)**3,
+    )
+
+    # Longitude
+    lon = math.atan2(y, x)
+
+    # Altitude
+    sin_lat = math.sin(lat)
+    N = WGS84_A / math.sqrt(1 - e2 * sin_lat**2)  # Radius of curvature in prime vertical
+    alt = (p / math.cos(lat)) - N
+
+    # Convert latitude and longitude to degrees
+    lat = math.degrees(lat)
+    lon = math.degrees(lon)
+
+    return lat, lon, alt
+
+# Function to parse GPS data
 def parse_gps_log(file_path):
     gps_data = []
     with open(file_path, 'r') as f:
@@ -40,12 +75,19 @@ def parse_gps_log(file_path):
                     print(f"Skipping irreparable line: {line}")
                     continue
 
-            if data.get("class") == "TPV" and all(key in data for key in ["lat", "lon", "time"]):
+            if data.get("class") == "TPV" and all(key in data for key in ["ecefx", "ecefy", "ecefz", "time"]):
+                # Convert ECEF to geodetic coordinates
+                lat, lon, alt = ecef_to_geodetic(data["ecefx"], data["ecefy"], data["ecefz"])
+
+                # Append data with converted lat/lon/alt
                 gps_data.append({
                     "timestamp": datetime.fromisoformat(data["time"].replace("Z", "+00:00")),
-                    "lat": data["lat"],
-                    "lon": data["lon"],
-                    "alt": data.get("alt", None)
+                    "lat": lat,
+                    "lon": lon,
+                    "alt": alt,
+                    "ecefx": data["ecefx"],
+                    "ecefy": data["ecefy"],
+                    "ecefz": data["ecefz"]
                 })
 
     print(f"Total valid GPS entries processed: {len(gps_data)}")

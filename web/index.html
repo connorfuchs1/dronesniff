@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wi-Fi Networks Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 100vh; /* Full-screen height */
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map
+        const map = L.map('map').setView([29.6578, -82.3765], 16); // Centered at example location
+
+        // Add a base map layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: 'Map data © <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Fetch the JSON data
+        fetch('../src/combined_data_with_vendors.json')
+            .then(response => response.json())
+            .then(data => {
+                // Add markers for each Wi-Fi network
+                data.forEach(point => {
+                    const marker = L.marker([point.gps_lat, point.gps_lon]).addTo(map);
+                    
+                    // Define the popup content
+                    const popupContent = `
+                        <b>MAC Address:</b> ${point.mac}<br>
+                        <b>SSID:</b> ${point.ssid || '(Hidden)'}<br>
+                        <b>Security:</b> ${point.security}<br>
+                        <b>Authentication:</b> ${point.authentication}<br>
+                        <b>Vendor:</b> ${point.vendor}<br>
+                        <b>Altitude:</b> ${point.gps_alt.toFixed(2)} meters
+                    `;
+                    
+                    // Bind the popup to the marker
+                    marker.bindPopup(popupContent);
+                });
+            })
+            .catch(error => console.error('Error loading JSON data:', error));
+    </script>
+</body>
+</html>
