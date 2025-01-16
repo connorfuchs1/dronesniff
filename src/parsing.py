@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 import pytz  # Install with: pip install pytz
 
 # File paths
-gps_log_file = "../captures/gps_capture_20250115-185058.log"
-wifi_csv_file = "../captures/capture_20250115-185058-01.csv"
+gps_log_file = "../captures/gps_capture_20250115-210737.log"
+wifi_csv_file = "../captures/capture_20250115-210737-01.csv"
 mac_vendor_file = "../macdata/mac.csv"  # Path to  MAC vendor CSV file
 
 # Function to load MAC vendor data
@@ -94,6 +94,7 @@ def parse_wifi_csv(file_path):
                         "last_seen": last_seen,
                         "channel": row[3].strip(),
                         "privacy": row[5].strip(),
+                        "authentication": row[7].strip(),
                         "ssid": row[13].strip() if len(row) > 13 else "",
                         "key": row[14].strip() if len(row) > 14 else "Unknown"
                     })
@@ -140,6 +141,8 @@ def associate_data(gps_data, wifi_data, mac_vendor_map):
                 combined_data.append({
                     "mac": wifi["bssid"],
                     "ssid": wifi["ssid"],
+                    "security": wifi["privacy"],
+                    "authentication": wifi["authentication"],
                     "gps_lat": current_gps["lat"],
                     "gps_lon": current_gps["lon"],
                     "gps_alt": current_gps["alt"],
